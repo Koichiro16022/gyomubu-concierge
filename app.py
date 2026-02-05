@@ -79,6 +79,194 @@ with tab_emp:
 
         st.markdown("---")
         
+        # --- 判定ロジック ---
+        found_kitei = next((v for k, v in st.session_state.kitei_db.items() if k in question), None)
+        
+        found_learned = []
+        for item in st.session_state.knowledge_base:
+            if isinstance(item, dict) and 'keywords' in item:
+                matched_keywords = [k for k in item['keywords'] if k and k in question]
+                if matched_keywords:
+                    found_learned.append(item.get('answer', ""))
+
+        # 判定結果の表示
+        if found_learned:
+            # ① 文言修正：ナレッジベース → データベース
+            st.success(f"**【AI回答：データベースより引用】**\n\n社内規定では「{found_kitei if found_kitei else '個別判断'}」とされていますが、**過去には個別の事情で業務部と面談・検討された事例があります。**\n\n--- \n**▼ 参考となった過去の回答：**\n{found_learned[0]}")
+        elif found_kitei:
+            st.info(f"**【規定による回答】**\n\n{found_kitei}")
+        
+        # ② ボタンの復活ロジック：学習済み回答があったとしても、追加質問が必要な場合は表示
+        # 規定がない、または特例（3年、1時間など）のキーワードがある場合にボタンを表示
+        show_btn = False
+        if not found_learned:
+            if "1時間" in question or "3年" in question or not found_kitei:
+                show_btn = True
+                st.error("⚠️ **業務部による個別判断が必要です**")
+                st.write("ご質問の内容は現行規定に明記されていないか、特例の判断が必要です。")
+        else:
+            # 学習済みデータがある場合でも、念のため相談を促す
+            show_btn = True
+            st.warning("💡 詳細な状況に合わせた判断については、業務部へ直接ご相談ください。")
+
+        if show_btn:
+            st.write("業務部へ本件の質問を送信しますか？")
+            if st.button("業務部へ質問"):
+                new_q = {
+                    "name": u_name, "dept": u_dept, "mail": u_mail, 
+                    "q": question, "time": datetime.now().strftime("%H:%M")
+                }
+                st.session_state.pending_questions.append(new_q)
+                st.success("✅ 質問を業務部へ送信しました。回答をお待ちください。")
+                time.sleep(2)
+                st.session_state.searched = False
+                st.rerun()
+
+# --- 【業務部用タブ】 ---
+with tab_admin:
+    st.markdown("### 🛡 業務部判断・学習管理")
+    
+    if st.sidebar.button("🛠 デモ用データリセット"):
+        st.session_state.knowledge_base = []
+        st.session_state.pending_questions = []
+        st.session_state.q_input_val = DEMO_QUESTION
+        st.session_state.searched = False
+        if 'confirming' in st.session_state: del st.session_state.confirming
+        st.rerun()
+
+    if not st.session_state.pending_questions:
+        st.write("現在、未回答の質問はありません。")
+    else:
+        st.write(f"#### 📩 未回答リスト ({len(st.session_state.pending_questions)}件)")
+        for i, item in enumerate(st.session_state.pending_questions):
+            with st.expander(f"質問者: {item['name']} ({item['dept']}) - {item['time']}", expanded=True):
+                st.write(f"**内容:** {item['q']}")
+                default_ans = "規定は1年ですが、特別な事情があれば検討します。一度面談しましょう。\n業務部　検査花子"
+                ans_text = st.text_area("回答を入力してください", value=default_ans, key=f"ans_{i}")
+                
+                words_in_q = [w for w in ["育休", "3年", "残業", "45時間", "グリーン車", "副業", "許可"] if w in item['q']]
+                
+                st.write("**この言葉をキーワード登録しますか？（複数選択可）**")
+                cols = st.columns(len(words_in_q) if words_in_q else 1)
+                selected_keywords = []
+                for idx, w in enumerate(words_in_q):
+                    if cols[idx].checkbox(w, key=f"check_{i}_{idx}", value=True):
+                        selected_keywords.append(w)
+                
+                manual_k = st.text_input("追加でキーワードを直接入力（追加したい場合は,か、で区切ってください）", 
+                                        key=f"manual_{i}", 
+                                        placeholder="例: 男性, 特例")
+                if manual_k:
+                    raw_keys = manual_k.replace("、", ",").split(",")
+                    selected_keywords.extend([k.strip() for k in raw_keys if k.strip()])
+
+                if st.button("回答を送信して学習させる", key=f"send_{i}"):
+                    if ans_text and selected_keywords:
+                        st.session_state.temp_ans = ans_text
+                        st.session_state.temp_keys = selected_keywords
+                        st.session_state.confirming = i
+                    else:
+                        st.warning("回答とキーワードを1つ以上入力してください。")
+
+        if 'confirming' in st.session_state:
+            st.markdown("---")
+            st.info(f"💡 **この判断をデータベースに保存し、次回からAIが自動回答してよろしいですか？**\n\n登録キーワード: {st.session_state.temp_keys}")
+            col_c1, col_c2 = st.columns(2)
+            if col_c1.button("✅ 承認（AI回答を許可）"):
+                st.session_state.knowledge_base.append({
+                    "keywords": list(set(st.session_state.temp_keys)),
+                    "answer": st.session_state.temp_ans
+                })
+                st.session_state.pending_questions.pop(st.session_state.confirming)
+                del st.session_state.confirming
+                st.success("✅ 学習が完了しました。")
+                time.sleep(1)
+                st.rerun()
+            if col_c2.button("❌ キャンセル"):
+                st.warning("⚠️ 承認がキャンセルされました。学習データには保存されません。")
+                time.sleep(2)
+                del st.session_state.confirming
+                st.rerun()import streamlit as st
+import time
+from datetime import datetime
+
+# --- 1. デザイン・視認性設定 ---
+st.set_page_config(page_title="業務部コンシェルジュ", page_icon="⚖️", layout="centered")
+
+st.markdown("""
+    <style>
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+        background-color: #262730 !important;
+        color: #ffffff !important;
+        caret-color: #ffffff !important;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+        justify-content: center;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        font-size: 16px;
+        font-weight: bold;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. データベース（セッション保持・デモ用初期値） ---
+if 'kitei_db' not in st.session_state:
+    st.session_state.kitei_db = {
+        "育休": "規定第15条：原則1年。申請は1ヶ月前。1日単位での取得とする。",
+        "残業": "規定第20条：45時間超は部長承認が必須。事前申請制。",
+        "旅費": "規定第25条：新幹線は普通車。4時間以上または部長級はグリーン車可。",
+        "退職金": "規定第30条：勤続3年以上が対象。自己都合と会社都合で算定係数が異なる。"
+    }
+
+DEMO_QUESTION = "男性でも育休を3年間取れますか？"
+
+if 'knowledge_base' not in st.session_state:
+    st.session_state.knowledge_base = []
+if 'pending_questions' not in st.session_state:
+    st.session_state.pending_questions = []
+if 'q_input_val' not in st.session_state:
+    st.session_state.q_input_val = DEMO_QUESTION
+if 'searched' not in st.session_state:
+    st.session_state.searched = False
+
+# --- 3. メインレイアウト ---
+st.markdown("<h1 style='text-align: center;'>⚖️ 業務部コンシェルジュ</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; font-size: 20px; color: #555555; margin-top: -20px; font-weight: bold;'>業務部用チャットボット</p>", unsafe_allow_html=True)
+st.write("---")
+
+tab_emp, tab_admin = st.tabs(["👥 一般社員用", "🛡 業務部用（管理者）"])
+
+# --- 【一般社員用タブ】 ---
+with tab_emp:
+    st.markdown("### ❓ 規定・制度に関する質問を検索")
+    
+    col_u1, col_u2 = st.columns(2)
+    with col_u1:
+        u_name = st.text_input("氏名", value="検査 太郎", key="u_name_input")
+    with col_u2:
+        u_dept = st.text_input("部署", value="検査室", key="u_dept_input")
+    u_mail = st.text_input("メールアドレス", value="taro@example.com", key="u_mail_input")
+
+    question = st.text_input("質問内容を入力してください", value=st.session_state.q_input_val, key="q_input")
+
+    if st.button("質問を検索", key="search_btn"):
+        st.session_state.searched = True
+
+    if st.session_state.searched:
+        bar = st.progress(0)
+        status = st.empty()
+        for i in range(1, 101):
+            status.text(f"社内規定を100%スキャン中... {i}%")
+            bar.progress(i)
+            time.sleep(0.005)
+        status.text("✅ スキャン完了。判定を出力します。")
+
+        st.markdown("---")
+        
         # --- 判定ロジック：柔軟なキーワードマッチング ---
         found_kitei = next((v for k, v in st.session_state.kitei_db.items() if k in question), None)
         
