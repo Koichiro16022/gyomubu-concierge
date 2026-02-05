@@ -35,6 +35,7 @@ KITEI_DB = {
 
 DEMO_QUESTION = "男性でも育休を3年間取れますか？"
 
+# 初期化
 if 'knowledge_base' not in st.session_state:
     st.session_state.knowledge_base = []
 if 'pending_questions' not in st.session_state:
@@ -74,13 +75,14 @@ with tab_emp:
 
             st.markdown("---")
             
-            # --- エラー回避版：判定ロジック ---
+            # --- 究極の安全版判定ロジック ---
             found_learned = []
             for item in st.session_state.knowledge_base:
-                # キーワードがリスト形式であることを確認し、空文字を除去して判定
-                valid_keywords = [k for k in item.get('keywords', []) if k]
-                if any(k in question for k in valid_keywords):
-                    found_learned.append(item['answer'])
+                # 辞書型であり、かつ 'keywords' というキーが存在する場合のみ処理（エラー回避）
+                if isinstance(item, dict) and 'keywords' in item:
+                    valid_keywords = [k for k in item['keywords'] if k]
+                    if any(k in question for k in valid_keywords):
+                        found_learned.append(item.get('answer', ""))
 
             found_kitei = next((v for k, v in KITEI_DB.items() if k in question), None)
 
@@ -104,8 +106,8 @@ with tab_emp:
 with tab_admin:
     st.markdown("### 🛡 業務部判断・学習管理")
     
+    # リセット機能を強化
     if st.sidebar.button("🛠 デモ用データリセット"):
-        # セッションを完全にクリアして初期化
         st.session_state.knowledge_base = []
         st.session_state.pending_questions = []
         st.session_state.q_input_val = DEMO_QUESTION
@@ -147,9 +149,8 @@ with tab_admin:
             st.info(f"💡 **この判断をデータベースに保存し、次回からAIが自動回答してよろしいですか？**\n\n登録キーワード: {st.session_state.temp_keys}")
             col_c1, col_c2 = st.columns(2)
             if col_c1.button("✅ 承認（AI回答を許可）"):
-                # 学習データの重複やエラーを防ぐ
                 new_entry = {
-                    "keywords": list(set(st.session_state.temp_keys)), # 重複削除
+                    "keywords": list(set(st.session_state.temp_keys)),
                     "answer": st.session_state.temp_ans
                 }
                 st.session_state.knowledge_base.append(new_entry)
