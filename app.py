@@ -2,111 +2,159 @@ import streamlit as st
 import time
 from datetime import datetime
 
-# --- 1. 零(ZERO) ブランドデザイン設定 ---
-st.set_page_config(page_title="業務部コンシェルジュ", page_icon="⚖️")
+# --- 1. デザイン・視認性設定 ---
+# 零（ZERO）ブランドの高級感と、現場での使いやすさを両立
+st.set_page_config(page_title="業務部用チャットボット", page_icon="⚖️", layout="centered")
 
-# カスタムCSSでデザインをネイビー・シルバー調に
 st.markdown("""
     <style>
-    .main {
-        background-color: #0e1117;
-        color: #ffffff;
+    /* 入力欄の背景を明るいグレーに設定し、カーソルと文字の白を際立たせる */
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+        background-color: #262730 !important;
+        color: #ffffff !important;
+        caret-color: #ffffff !important;
     }
-    .stButton>button {
-        background-color: #1f2937;
-        color: #c0c0c0;
-        border: 1px solid #c0c0c0;
-        width: 100%;
-        border-radius: 5px;
+    /* タブの視認性向上 */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
     }
-    .stButton>button:hover {
-        background-color: #c0c0c0;
-        color: #0e1117;
-    }
-    .stTextInput>div>div>input {
-        background-color: #1f2937;
-        color: #ffffff;
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        font-size: 16px;
+        font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 知識ベース（架空規定） ---
+# --- 2. データベース（セッション保持・デモ用初期値） ---
 KITEI_DB = {
-    "育休": "第15条：原則1年。申請は1ヶ月前。1日単位での取得とする。",
-    "残業": "第20条：45時間超は部長承認が必須。事前申請制。",
-    "旅費": "第25条：新幹線は普通車。4時間以上または部長級はグリーン車可。",
-    "退職金": "第30条：勤続3年以上が対象。自己都合と会社都合で係数が異なる。"
+    "育休": "規定第15条：原則1年。申請は1ヶ月前。1日単位での取得とする。",
+    "残業": "規定第20条：45時間超は部長承認が必須。事前申請制。",
+    "旅費": "規定第25条：新幹線は普通車。4時間以上または部長級はグリーン車可。",
+    "退職金": "規定第30条：勤続3年以上が対象。自己都合と会社都合で算定係数が異なる。"
 }
 
-# 業務部判断の蓄積（セッション保持）
+# デモ用初期設定：取締役に見せる最初の問いかけ
+DEMO_QUESTION = "男性でも育休を3年間取れますか？"
+
 if 'knowledge_base' not in st.session_state:
-    st.session_state.knowledge_base = {
-        "精密機器": "精密機器携行時は4時間未満でもグリーン車可（業務部判断済）"
-    }
+    st.session_state.knowledge_base = []
+if 'pending_questions' not in st.session_state:
+    st.session_state.pending_questions = []
+if 'q_input_val' not in st.session_state:
+    st.session_state.q_input_val = DEMO_QUESTION
 
-# --- 3. UIレイアウト ---
-st.title("⚖️ 業務部コンシェルジュ")
-st.markdown("### **零 (ZERO) - 規定参照型AIプロトタイプ**")
-st.write("---")
+# --- 3. メインレイアウト（タブ構成） ---
+st.title("⚖️ 業務部用チャットボット")
+tab_emp, tab_admin = st.tabs(["👥 一般社員用", "🛡 業務部用（管理者）"])
 
-# 利用者情報（検査室からのアクセスを想定）
-with st.container():
-    col1, col2 = st.columns(2)
-    with col1:
-        u_name = st.text_input("氏名", "検査 太郎")
-    with col2:
-        u_dept = st.text_input("部署", "検査室")
-    u_mail = st.text_input("メールアドレス", "taro@example.com")
+# --- 【一般社員用タブ】 ---
+with tab_emp:
+    st.markdown("### ❓ 規定・制度に関する質問を検索")
+    
+    col_u1, col_u2 = st.columns(2)
+    with col_u1:
+        st.text_input("氏名", value="検査 太郎", key="u_name")
+    with col_u2:
+        st.text_input("部署", value="検査室", key="u_dept")
+    st.text_input("メールアドレス", value="taro@example.com", key="u_mail")
 
-st.write("---")
+    # デモ用の質問を初期値としてセット
+    question = st.text_input("質問内容を入力してください", value=st.session_state.q_input_val, key="q_input")
 
-# 質問入力（お題）
-question = st.text_input("❓ 規定・制度について質問してください", placeholder="例：育休を1時間単位で取れますか？")
+    if st.button("質問を検索", key="search_btn"):
+        if question:
+            # 演出：100%スキャン
+            bar = st.progress(0)
+            status = st.empty()
+            for i in range(1, 101):
+                status.text(f"社内規定を100%スキャン中... {i}%")
+                bar.progress(i)
+                time.sleep(0.005)
+            status.text("✅ スキャン完了。判定を出力します。")
 
-if st.button("零（ZERO）エンジンで解析を実行"):
-    if question:
-        # インパクト重視の演出：プログレスバー
-        bar = st.progress(0)
-        status = st.empty()
-        for i in range(1, 101):
-            status.text(f"社内規定を100%スキャン中... {i}%")
-            bar.progress(i)
-            time.sleep(0.01)
-        status.text("✅ スキャン完了。判定を出力します。")
-        
-        st.markdown("---")
-        
-        # 判定ロジック
-        found_kitei = None
-        for key in KITEI_DB:
-            if key in question:
-                found_kitei = KITEI_DB[key]
-                break
-        
-        if found_kitei:
-            st.success(f"**【規定による回答】**\n\n{found_kitei}")
-        
-        # 教師データ（過去の判断）の照合
-        for key in st.session_state.knowledge_base:
-            if key in question:
-                st.info(f"**【過去の業務部判断を発見】**\n\n{st.session_state.knowledge_base[key]}")
-        
-        # 案A（安全重視）：規定外・曖昧なケース
-        if "1時間" in question or "3年" in question or not found_kitei:
-            st.error("⚠️ **【案A：安全重視】判断を保留します**")
-            st.write("ご質問の内容は現行規定に明記されていないか、特例の判断が必要です。")
-            st.write(f"担当Aさんへ、本件（{question}）の判断依頼を送信しますか？")
-            if st.button("担当Aさんへエスカレーションを実行"):
-                st.success("✅ Aさんへ通知を送信しました。回答をお待ちください。")
-        
-        st.markdown("---")
-        st.caption("「私はプロセスを100%制御しています。詳細は業務部へ。」")
+            st.markdown("---")
+            
+            # 判定ロジック：学習済みデータ or 規定DB
+            found_learned = [item['answer'] for item in st.session_state.knowledge_base if any(k in question for k in item['keywords'])]
+            found_kitei = next((v for k, v in KITEI_DB.items() if k in question), None)
 
-# --- 4. 学習モード（プレゼンの見せ場） ---
-with st.expander("🛠 管理者メニュー（業務部判断の蓄積）"):
-    st.write("担当Aさんの判断を教師データとして学習させ、AIを成長させます。")
-    new_q = st.text_input("判断が必要なキーワード（例：副業）")
-    new_a = st.text_area("業務部としての判断（例：原則禁止だが、許可制で認める場合がある）")
-    if st.button("知恵をデータベースに蓄積"):
-        st.session_state.knowledge_base[new_q] = f"{new_a}（業務部判断 {datetime.now().strftime('%Y/%m/%d')}）"
-        st.success("ナレッジを保存しました。次回から同様の質問に回答可能になります。")
+            if found_learned:
+                st.success(f"**【業務部の判断（学習済み）】**\n\n{found_learned[0]}")
+            elif found_kitei:
+                st.info(f"**【規定による回答】**\n\n{found_kitei}")
+            
+            # 規定外・個別判断の判定（案A：安全重視のロジック）
+            if not found_learned and ("1時間" in question or "3年" in question or not found_kitei):
+                st.error("⚠️ **業務部による個別判断が必要です**")
+                st.write(f"ご質問の内容は現行規定に明記されていないか、特例の判断が必要です。")
+                st.write(f"担当Aさんへ、本件の判断依頼を送信しますか？")
+                if st.button("業務部へ質問"):
+                    st.session_state.pending_questions.append({
+                        "name": st.session_state.u_name, "dept": st.session_state.u_dept, 
+                        "mail": st.session_state.u_mail, "q": question, "time": datetime.now().strftime("%H:%M")
+                    })
+                    st.success("✅ 業務部へ通知（シミュレーション）を送信しました。回答をお待ちください。")
+
+# --- 【業務部用タブ】 ---
+with tab_admin:
+    st.markdown("### 🛡 業務部判断・学習管理")
+    
+    # デモ用リセットボタン（サイドバーに配置して誤操作防止）
+    if st.sidebar.button("🛠 デモ用データリセット"):
+        st.session_state.knowledge_base = []
+        st.session_state.pending_questions = []
+        st.session_state.q_input_val = DEMO_QUESTION
+        st.rerun()
+
+    if not st.session_state.pending_questions:
+        st.write("現在、未回答の質問はありません。")
+    else:
+        st.write("#### 📩 未回答リスト")
+        for i, item in enumerate(st.session_state.pending_questions):
+            with st.expander(f"質問者: {item['name']} ({item['dept']}) - {item['time']}", expanded=True):
+                st.write(f"**内容:** {item['q']}")
+                # 回答の初期案をセットしてデモをスムーズに
+                ans_text = st.text_area("回答を入力してください", value="規定は1年ですが、特別な事情があれば検討します。一度面談しましょう。", key=f"ans_{i}")
+                
+                # キーワード提案（大喜利方式の応用）
+                suggested_words = [w for w in ["育休", "3年", "残業", "45時間", "グリーン車", "副業", "許可"] if w in item['q']]
+                
+                st.write("**この言葉をキーワード登録しますか？（複数選択可）**")
+                cols = st.columns(len(suggested_words) if suggested_words else 1)
+                selected_keywords = []
+                for idx, w in enumerate(suggested_words):
+                    if cols[idx].checkbox(w, key=f"check_{i}_{idx}", value=True):
+                        selected_keywords.append(w)
+                
+                manual_k = st.text_input("追加でキーワードを直接入力（カンマ区切り）", key=f"manual_{i}", placeholder="例: 男性, 特例")
+                if manual_k:
+                    selected_keywords.extend([k.strip() for k in manual_k.split(",") if k.strip()])
+
+                if st.button("回答を送信して学習させる", key=f"send_{i}"):
+                    if ans_text and selected_keywords:
+                        st.session_state.temp_ans = ans_text
+                        st.session_state.temp_keys = selected_keywords
+                        st.session_state.confirming = i
+                    else:
+                        st.warning("回答とキーワードを1つ以上入力してください。")
+
+        # 承認ステップ（100%制御の演出）
+        if 'confirming' in st.session_state:
+            st.markdown("---")
+            st.info(f"💡 **この判断をデータベースに保存し、次回からAIが自動回答してよろしいですか？**\n\n登録キーワード: {st.session_state.temp_keys}")
+            col_c1, col_c2 = st.columns(2)
+            if col_c1.button("✅ 承認（AI回答を許可）"):
+                st.session_state.knowledge_base.append({
+                    "keywords": st.session_state.temp_keys,
+                    "answer": st.session_state.temp_ans
+                })
+                st.session_state.pending_questions.pop(st.session_state.confirming)
+                del st.session_state.confirming
+                st.success("✅ 学習が完了しました。")
+                time.sleep(1)
+                st.rerun()
+            if col_c2.button("❌ キャンセル"):
+                del st.session_state.confirming
+                st.rerun()
