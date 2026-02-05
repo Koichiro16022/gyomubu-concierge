@@ -28,7 +28,7 @@ st.markdown("""
 # --- 2. データベース（セッション保持・デモ用初期値） ---
 KITEI_DB = {
     "育休": "規定第15条：原則1年。申請は1ヶ月前。1日単位での取得とする。",
-    "残業": "規定第20条：45時間超は部署承認が必須。事前申請制。",
+    "残業": "規定第20条：45時間超は部長承認が必須。事前申請制。",
     "旅費": "規定第25条：新幹線は普通車。4時間以上または部長級はグリーン車可。",
     "退職金": "規定第30条：勤続3年以上が対象。自己都合と会社都合で算定係数が異なる。"
 }
@@ -91,8 +91,8 @@ with tab_emp:
             if not found_learned and ("1時間" in question or "3年" in question or not found_kitei):
                 st.error("⚠️ **業務部による個別判断が必要です**")
                 st.write("ご質問の内容は現行規定に明記されていないか、特例の判断が必要です。")
-                # 文言を修正しました
-                st.write("業務部へ本件の判断依頼を送信しますか？")
+                # 文言を「質問を送信」に修正しました
+                st.write("業務部へ本件の質問を送信しますか？")
                 if st.button("業務部へ質問"):
                     st.session_state.pending_questions.append({
                         "name": st.session_state.u_name, "dept": st.session_state.u_dept, 
