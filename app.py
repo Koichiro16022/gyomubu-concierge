@@ -79,17 +79,21 @@ with tab_emp:
 
         st.markdown("---")
         
+        # --- 判定ロジック：柔軟なキーワードマッチング ---
+        found_kitei = next((v for k, v in st.session_state.kitei_db.items() if k in question), None)
+        
         found_learned = []
         for item in st.session_state.knowledge_base:
             if isinstance(item, dict) and 'keywords' in item:
-                valid_keys = [k for k in item['keywords'] if isinstance(k, str) and k]
-                if any(k in question for k in valid_keys):
+                # 登録されているキーワードのうち、どれか一つでも質問に含まれていればヒット
+                matched_keywords = [k for k in item['keywords'] if k and k in question]
+                if matched_keywords:
                     found_learned.append(item.get('answer', ""))
 
-        found_kitei = next((v for k, v in st.session_state.kitei_db.items() if k in question), None)
-
         if found_learned:
-            st.success(f"**【業務部の判断（学習済み）】**\n\n{found_learned[0]}")
+            # ① 文言の修正：検討・面談事例として表示
+            st.success(f"**【AI回答：ナレッジベースより引用】**\n\n社内規定では「{found_kitei if found_kitei else '個別判断'}」とされていますが、**過去には個別の事情で業務部と面談・検討された事例があります。**\n\n--- \n**▼ 参考となった過去の回答：**\n{found_learned[0]}")
+            st.info("💡 詳細は業務部へ直接ご相談ください。")
         elif found_kitei:
             st.info(f"**【規定による回答】**\n\n{found_kitei}")
         
@@ -128,16 +132,17 @@ with tab_admin:
         for i, item in enumerate(st.session_state.pending_questions):
             with st.expander(f"質問者: {item['name']} ({item['dept']}) - {item['time']}", expanded=True):
                 st.write(f"**内容:** {item['q']}")
-                # 回答の初期値を「検査 花子」さん名義に修正
                 default_ans = "規定は1年ですが、特別な事情があれば検討します。一度面談しましょう。\n業務部　検査花子"
                 ans_text = st.text_area("回答を入力してください", value=default_ans, key=f"ans_{i}")
                 
+                # AI提案のキーワード（大喜利方式）
                 words_in_q = [w for w in ["育休", "3年", "残業", "45時間", "グリーン車", "副業", "許可"] if w in item['q']]
                 
                 st.write("**この言葉をキーワード登録しますか？（複数選択可）**")
                 cols = st.columns(len(words_in_q) if words_in_q else 1)
                 selected_keywords = []
                 for idx, w in enumerate(words_in_q):
+                    # ② ここでチェックを外した単語は selected_keywords に入らない
                     if cols[idx].checkbox(w, key=f"check_{i}_{idx}", value=True):
                         selected_keywords.append(w)
                 
