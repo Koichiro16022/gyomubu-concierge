@@ -3,18 +3,15 @@ import time
 from datetime import datetime
 
 # --- 1. デザイン・視認性設定 ---
-# 零（ZERO）ブランドの高級感と、現場での使いやすさを両立
-st.set_page_config(page_title="業務部用チャットボット", page_icon="⚖️", layout="centered")
+st.set_page_config(page_title="業務部コンシェルジュ", page_icon="⚖️", layout="centered")
 
 st.markdown("""
     <style>
-    /* 入力欄の背景を明るいグレーに設定し、カーソルと文字の白を際立たせる */
     .stTextInput>div>div>input, .stTextArea>div>div>textarea {
         background-color: #262730 !important;
         color: #ffffff !important;
         caret-color: #ffffff !important;
     }
-    /* タブの視認性向上 */
     .stTabs [data-baseweb="tab-list"] {
         gap: 24px;
     }
@@ -35,7 +32,6 @@ KITEI_DB = {
     "退職金": "規定第30条：勤続3年以上が対象。自己都合と会社都合で算定係数が異なる。"
 }
 
-# デモ用初期設定：取締役に見せる最初の問いかけ
 DEMO_QUESTION = "男性でも育休を3年間取れますか？"
 
 if 'knowledge_base' not in st.session_state:
@@ -45,8 +41,11 @@ if 'pending_questions' not in st.session_state:
 if 'q_input_val' not in st.session_state:
     st.session_state.q_input_val = DEMO_QUESTION
 
-# --- 3. メインレイアウト（タブ構成） ---
-st.title("⚖️ 業務部用チャットボット")
+# --- 3. メインレイアウト（タイトル修正版） ---
+st.title("⚖️ 業務部コンシェルジュ")
+st.markdown("<p style='font-size: 20px; color: #c0c0c0; margin-top: -20px;'>業務部用チャットボット</p>", unsafe_allow_html=True)
+st.write("---")
+
 tab_emp, tab_admin = st.tabs(["👥 一般社員用", "🛡 業務部用（管理者）"])
 
 # --- 【一般社員用タブ】 ---
@@ -60,12 +59,10 @@ with tab_emp:
         st.text_input("部署", value="検査室", key="u_dept")
     st.text_input("メールアドレス", value="taro@example.com", key="u_mail")
 
-    # デモ用の質問を初期値としてセット
     question = st.text_input("質問内容を入力してください", value=st.session_state.q_input_val, key="q_input")
 
     if st.button("質問を検索", key="search_btn"):
         if question:
-            # 演出：100%スキャン
             bar = st.progress(0)
             status = st.empty()
             for i in range(1, 101):
@@ -76,7 +73,6 @@ with tab_emp:
 
             st.markdown("---")
             
-            # 判定ロジック：学習済みデータ or 規定DB
             found_learned = [item['answer'] for item in st.session_state.knowledge_base if any(k in question for k in item['keywords'])]
             found_kitei = next((v for k, v in KITEI_DB.items() if k in question), None)
 
@@ -85,7 +81,6 @@ with tab_emp:
             elif found_kitei:
                 st.info(f"**【規定による回答】**\n\n{found_kitei}")
             
-            # 規定外・個別判断の判定（案A：安全重視のロジック）
             if not found_learned and ("1時間" in question or "3年" in question or not found_kitei):
                 st.error("⚠️ **業務部による個別判断が必要です**")
                 st.write(f"ご質問の内容は現行規定に明記されていないか、特例の判断が必要です。")
@@ -101,7 +96,6 @@ with tab_emp:
 with tab_admin:
     st.markdown("### 🛡 業務部判断・学習管理")
     
-    # デモ用リセットボタン（サイドバーに配置して誤操作防止）
     if st.sidebar.button("🛠 デモ用データリセット"):
         st.session_state.knowledge_base = []
         st.session_state.pending_questions = []
@@ -115,10 +109,8 @@ with tab_admin:
         for i, item in enumerate(st.session_state.pending_questions):
             with st.expander(f"質問者: {item['name']} ({item['dept']}) - {item['time']}", expanded=True):
                 st.write(f"**内容:** {item['q']}")
-                # 回答の初期案をセットしてデモをスムーズに
                 ans_text = st.text_area("回答を入力してください", value="規定は1年ですが、特別な事情があれば検討します。一度面談しましょう。", key=f"ans_{i}")
                 
-                # キーワード提案（大喜利方式の応用）
                 suggested_words = [w for w in ["育休", "3年", "残業", "45時間", "グリーン車", "副業", "許可"] if w in item['q']]
                 
                 st.write("**この言葉をキーワード登録しますか？（複数選択可）**")
@@ -140,7 +132,6 @@ with tab_admin:
                     else:
                         st.warning("回答とキーワードを1つ以上入力してください。")
 
-        # 承認ステップ（100%制御の演出）
         if 'confirming' in st.session_state:
             st.markdown("---")
             st.info(f"💡 **この判断をデータベースに保存し、次回からAIが自動回答してよろしいですか？**\n\n登録キーワード: {st.session_state.temp_keys}")
