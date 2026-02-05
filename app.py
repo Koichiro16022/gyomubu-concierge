@@ -139,7 +139,6 @@ with tab_admin:
                     if cols[idx].checkbox(w, key=f"check_{i}_{idx}", value=True):
                         selected_keywords.append(w)
                 
-                # ラベルを要望通りに修正
                 manual_k = st.text_input("追加でキーワードを直接入力（追加したい場合は,か、で区切ってください）", 
                                         key=f"manual_{i}", 
                                         placeholder="例: 男性, 特例")
@@ -170,5 +169,7 @@ with tab_admin:
                 time.sleep(1)
                 st.rerun()
             if col_c2.button("❌ キャンセル"):
+                st.warning("⚠️ 承認がキャンセルされました。学習データには保存されません。")
+                time.sleep(2)
                 del st.session_state.confirming
                 st.rerun()
