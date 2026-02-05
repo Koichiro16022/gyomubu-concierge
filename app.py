@@ -36,12 +36,15 @@ if 'kitei_db' not in st.session_state:
 
 DEMO_QUESTION = "男性でも育休を3年間取れますか？"
 
+# 全てのセッション変数を安全に初期化
 if 'knowledge_base' not in st.session_state:
     st.session_state.knowledge_base = []
 if 'pending_questions' not in st.session_state:
     st.session_state.pending_questions = []
 if 'q_input_val' not in st.session_state:
     st.session_state.q_input_val = DEMO_QUESTION
+if 'searched' not in st.session_state:
+    st.session_state.searched = False
 
 # --- 3. メインレイアウト ---
 st.markdown("<h1 style='text-align: center;'>⚖️ 業務部コンシェルジュ</h1>", unsafe_allow_html=True)
@@ -64,9 +67,9 @@ with tab_emp:
     question = st.text_input("質問内容を入力してください", value=st.session_state.q_input_val, key="q_input")
 
     if st.button("質問を検索", key="search_btn"):
-        st.session_state.searched = True # 検索実行フラグ
+        st.session_state.searched = True
 
-    if st.session_state.get("searched"):
+    if st.session_state.searched:
         bar = st.progress(0)
         status = st.empty()
         for i in range(1, 101):
@@ -77,8 +80,15 @@ with tab_emp:
 
         st.markdown("---")
         
-        # 判定ロジック
-        found_learned = [item['answer'] for item in st.session_state.knowledge_base if any(k in question for k in item.get('keywords', []))]
+        # --- 安全性を極めた判定ロジック ---
+        found_learned = []
+        for item in st.session_state.knowledge_base:
+            # itemが辞書であり、かつ 'keywords' を持っている場合のみ処理
+            if isinstance(item, dict) and 'keywords' in item:
+                valid_keys = [k for k in item['keywords'] if isinstance(k, str) and k]
+                if any(k in question for k in valid_keys):
+                    found_learned.append(item.get('answer', "回答データに不備があります"))
+
         found_kitei = next((v for k, v in st.session_state.kitei_db.items() if k in question), None)
 
         if found_learned:
@@ -92,17 +102,13 @@ with tab_emp:
             st.write("業務部へ本件の質問を送信しますか？")
             
             if st.button("業務部へ質問"):
-                # リストへの追加を確実に行う
                 new_q = {
-                    "name": u_name, 
-                    "dept": u_dept, 
-                    "mail": u_mail, 
-                    "q": question, 
-                    "time": datetime.now().strftime("%H:%M")
+                    "name": u_name, "dept": u_dept, "mail": u_mail, 
+                    "q": question, "time": datetime.now().strftime("%H:%M")
                 }
                 st.session_state.pending_questions.append(new_q)
                 st.success("✅ 質問を業務部へ送信しました。回答をお待ちください。")
-                time.sleep(2) # メッセージを見せるための待ち時間
+                time.sleep(2)
                 st.session_state.searched = False
                 st.rerun()
 
@@ -153,6 +159,7 @@ with tab_admin:
             st.info(f"💡 **この判断をデータベースに保存し、次回からAIが自動回答してよろしいですか？**\n\n登録キーワード: {st.session_state.temp_keys}")
             col_c1, col_c2 = st.columns(2)
             if col_c1.button("✅ 承認（AI回答を許可）"):
+                # データを辞書型で確実に保存
                 st.session_state.knowledge_base.append({
                     "keywords": list(set(st.session_state.temp_keys)),
                     "answer": st.session_state.temp_ans
