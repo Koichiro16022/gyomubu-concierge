@@ -36,7 +36,6 @@ if 'kitei_db' not in st.session_state:
 
 DEMO_QUESTION = "男性でも育休を3年間取れますか？"
 
-# 全てのセッション変数を安全に初期化
 if 'knowledge_base' not in st.session_state:
     st.session_state.knowledge_base = []
 if 'pending_questions' not in st.session_state:
@@ -80,14 +79,12 @@ with tab_emp:
 
         st.markdown("---")
         
-        # --- 安全性を極めた判定ロジック ---
         found_learned = []
         for item in st.session_state.knowledge_base:
-            # itemが辞書であり、かつ 'keywords' を持っている場合のみ処理
             if isinstance(item, dict) and 'keywords' in item:
                 valid_keys = [k for k in item['keywords'] if isinstance(k, str) and k]
                 if any(k in question for k in valid_keys):
-                    found_learned.append(item.get('answer', "回答データに不備があります"))
+                    found_learned.append(item.get('answer', ""))
 
         found_kitei = next((v for k, v in st.session_state.kitei_db.items() if k in question), None)
 
@@ -142,9 +139,13 @@ with tab_admin:
                     if cols[idx].checkbox(w, key=f"check_{i}_{idx}", value=True):
                         selected_keywords.append(w)
                 
-                manual_k = st.text_input("追加でキーワードを直接入力（カンマ区切り）", key=f"manual_{i}", placeholder="例: 男性, 特例")
+                # ラベルを要望通りに修正
+                manual_k = st.text_input("追加でキーワードを直接入力（追加したい場合は,か、で区切ってください）", 
+                                        key=f"manual_{i}", 
+                                        placeholder="例: 男性, 特例")
                 if manual_k:
-                    selected_keywords.extend([k.strip() for k in manual_k.split(",") if k.strip()])
+                    raw_keys = manual_k.replace("、", ",").split(",")
+                    selected_keywords.extend([k.strip() for k in raw_keys if k.strip()])
 
                 if st.button("回答を送信して学習させる", key=f"send_{i}"):
                     if ans_text and selected_keywords:
@@ -159,7 +160,6 @@ with tab_admin:
             st.info(f"💡 **この判断をデータベースに保存し、次回からAIが自動回答してよろしいですか？**\n\n登録キーワード: {st.session_state.temp_keys}")
             col_c1, col_c2 = st.columns(2)
             if col_c1.button("✅ 承認（AI回答を許可）"):
-                # データを辞書型で確実に保存
                 st.session_state.knowledge_base.append({
                     "keywords": list(set(st.session_state.temp_keys)),
                     "answer": st.session_state.temp_ans
