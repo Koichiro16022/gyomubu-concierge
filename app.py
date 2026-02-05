@@ -128,7 +128,9 @@ with tab_admin:
         for i, item in enumerate(st.session_state.pending_questions):
             with st.expander(f"質問者: {item['name']} ({item['dept']}) - {item['time']}", expanded=True):
                 st.write(f"**内容:** {item['q']}")
-                ans_text = st.text_area("回答を入力してください", value="規定は1年ですが、特別な事情があれば検討します。一度面談しましょう。", key=f"ans_{i}")
+                # 回答の初期値を「検査 花子」さん名義に修正
+                default_ans = "規定は1年ですが、特別な事情があれば検討します。一度面談しましょう。\n業務部　検査花子"
+                ans_text = st.text_area("回答を入力してください", value=default_ans, key=f"ans_{i}")
                 
                 words_in_q = [w for w in ["育休", "3年", "残業", "45時間", "グリーン車", "副業", "許可"] if w in item['q']]
                 
