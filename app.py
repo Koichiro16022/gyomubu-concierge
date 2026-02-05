@@ -26,12 +26,13 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 2. データベース（セッション保持・デモ用初期値） ---
-KITEI_DB = {
-    "育休": "規定第15条：原則1年。申請は1ヶ月前。1日単位での取得とする。",
-    "残業": "規定第20条：45時間超は部長承認が必須。事前申請制。",
-    "旅費": "規定第25条：新幹線は普通車。4時間以上または部長級はグリーン車可。",
-    "退職金": "規定第30条：勤続3年以上が対象。自己都合と会社都合で算定係数が異なる。"
-}
+if 'kitei_db' not in st.session_state:
+    st.session_state.kitei_db = {
+        "育休": "規定第15条：原則1年。申請は1ヶ月前。1日単位での取得とする。",
+        "残業": "規定第20条：45時間超は部長承認が必須。事前申請制。",
+        "旅費": "規定第25条：新幹線は普通車。4時間以上または部長級はグリーン車可。",
+        "退職金": "規定第30条：勤続3年以上が対象。自己都合と会社都合で算定係数が異なる。"
+    }
 
 DEMO_QUESTION = "男性でも育休を3年間取れますか？"
 
@@ -42,7 +43,7 @@ if 'pending_questions' not in st.session_state:
 if 'q_input_val' not in st.session_state:
     st.session_state.q_input_val = DEMO_QUESTION
 
-# --- 3. メインレイアウト（中央揃えのタイトル） ---
+# --- 3. メインレイアウト ---
 st.markdown("<h1 style='text-align: center;'>⚖️ 業務部コンシェルジュ</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; font-size: 20px; color: #555555; margin-top: -20px; font-weight: bold;'>業務部用チャットボット</p>", unsafe_allow_html=True)
 st.write("---")
@@ -55,50 +56,55 @@ with tab_emp:
     
     col_u1, col_u2 = st.columns(2)
     with col_u1:
-        st.text_input("氏名", value="検査 太郎", key="u_name")
+        u_name = st.text_input("氏名", value="検査 太郎", key="u_name_input")
     with col_u2:
-        st.text_input("部署", value="検査室", key="u_dept")
-    st.text_input("メールアドレス", value="taro@example.com", key="u_mail")
+        u_dept = st.text_input("部署", value="検査室", key="u_dept_input")
+    u_mail = st.text_input("メールアドレス", value="taro@example.com", key="u_mail_input")
 
     question = st.text_input("質問内容を入力してください", value=st.session_state.q_input_val, key="q_input")
 
     if st.button("質問を検索", key="search_btn"):
-        if question:
-            bar = st.progress(0)
-            status = st.empty()
-            for i in range(1, 101):
-                status.text(f"社内規定を100%スキャン中... {i}%")
-                bar.progress(i)
-                time.sleep(0.005)
-            status.text("✅ スキャン完了。判定を出力します。")
+        st.session_state.searched = True # 検索実行フラグ
 
-            st.markdown("---")
+    if st.session_state.get("searched"):
+        bar = st.progress(0)
+        status = st.empty()
+        for i in range(1, 101):
+            status.text(f"社内規定を100%スキャン中... {i}%")
+            bar.progress(i)
+            time.sleep(0.005)
+        status.text("✅ スキャン完了。判定を出力します。")
+
+        st.markdown("---")
+        
+        # 判定ロジック
+        found_learned = [item['answer'] for item in st.session_state.knowledge_base if any(k in question for k in item.get('keywords', []))]
+        found_kitei = next((v for k, v in st.session_state.kitei_db.items() if k in question), None)
+
+        if found_learned:
+            st.success(f"**【業務部の判断（学習済み）】**\n\n{found_learned[0]}")
+        elif found_kitei:
+            st.info(f"**【規定による回答】**\n\n{found_kitei}")
+        
+        if not found_learned and ("1時間" in question or "3年" in question or not found_kitei):
+            st.error("⚠️ **業務部による個別判断が必要です**")
+            st.write("ご質問の内容は現行規定に明記されていないか、特例の判断が必要です。")
+            st.write("業務部へ本件の質問を送信しますか？")
             
-            found_learned = []
-            for item in st.session_state.knowledge_base:
-                if isinstance(item, dict) and 'keywords' in item:
-                    valid_keywords = [k for k in item['keywords'] if k]
-                    if any(k in question for k in valid_keywords):
-                        found_learned.append(item.get('answer', ""))
-
-            found_kitei = next((v for k, v in KITEI_DB.items() if k in question), None)
-
-            if found_learned:
-                st.success(f"**【業務部の判断（学習済み）】**\n\n{found_learned[0]}")
-            elif found_kitei:
-                st.info(f"**【規定による回答】**\n\n{found_kitei}")
-            
-            if not found_learned and ("1時間" in question or "3年" in question or not found_kitei):
-                st.error("⚠️ **業務部による個別判断が必要です**")
-                st.write("ご質問の内容は現行規定に明記されていないか、特例の判断が必要です。")
-                # 文言を「質問を送信」に修正しました
-                st.write("業務部へ本件の質問を送信しますか？")
-                if st.button("業務部へ質問"):
-                    st.session_state.pending_questions.append({
-                        "name": st.session_state.u_name, "dept": st.session_state.u_dept, 
-                        "mail": st.session_state.u_mail, "q": question, "time": datetime.now().strftime("%H:%M")
-                    })
-                    st.success("✅ 業務部へ通知（シミュレーション）を送信しました。回答をお待ちください。")
+            if st.button("業務部へ質問"):
+                # リストへの追加を確実に行う
+                new_q = {
+                    "name": u_name, 
+                    "dept": u_dept, 
+                    "mail": u_mail, 
+                    "q": question, 
+                    "time": datetime.now().strftime("%H:%M")
+                }
+                st.session_state.pending_questions.append(new_q)
+                st.success("✅ 質問を業務部へ送信しました。回答をお待ちください。")
+                time.sleep(2) # メッセージを見せるための待ち時間
+                st.session_state.searched = False
+                st.rerun()
 
 # --- 【業務部用タブ】 ---
 with tab_admin:
@@ -108,13 +114,14 @@ with tab_admin:
         st.session_state.knowledge_base = []
         st.session_state.pending_questions = []
         st.session_state.q_input_val = DEMO_QUESTION
+        st.session_state.searched = False
         if 'confirming' in st.session_state: del st.session_state.confirming
         st.rerun()
 
     if not st.session_state.pending_questions:
         st.write("現在、未回答の質問はありません。")
     else:
-        st.write("#### 📩 未回答リスト")
+        st.write(f"#### 📩 未回答リスト ({len(st.session_state.pending_questions)}件)")
         for i, item in enumerate(st.session_state.pending_questions):
             with st.expander(f"質問者: {item['name']} ({item['dept']}) - {item['time']}", expanded=True):
                 st.write(f"**内容:** {item['q']}")
@@ -146,11 +153,10 @@ with tab_admin:
             st.info(f"💡 **この判断をデータベースに保存し、次回からAIが自動回答してよろしいですか？**\n\n登録キーワード: {st.session_state.temp_keys}")
             col_c1, col_c2 = st.columns(2)
             if col_c1.button("✅ 承認（AI回答を許可）"):
-                new_entry = {
+                st.session_state.knowledge_base.append({
                     "keywords": list(set(st.session_state.temp_keys)),
                     "answer": st.session_state.temp_ans
-                }
-                st.session_state.knowledge_base.append(new_entry)
+                })
                 st.session_state.pending_questions.pop(st.session_state.confirming)
                 del st.session_state.confirming
                 st.success("✅ 学習が完了しました。")
